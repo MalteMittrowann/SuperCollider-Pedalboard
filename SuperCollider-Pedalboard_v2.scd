@@ -1,29 +1,22 @@
 // ============================================================
-// ☣️ JUMP UP DNB RIG - TRACK BASED (SUB BASS EDIT) ☣️
+// ☣️ JUMP UP DNB RIG - FULL CONCERT EDITION ☣️
 //
-// 1. TROMPETE (Audio In):
-//    - Taste 1: Wobble FX
-//    - Taste 2: Sub Bass -1 (Sine)
-//    - Taste 3: Sub Bass -2 (Sine)
-//    - Taste 4: Sub Bass -3 (Sine)
-//    - Taste 5: Doom FX
-//    - Pedal A: Macro Control
+// BANK 00 (PC 0-9):   TRACK 1 (Wobble, Distortion, Arp)
+// BANK 01 (PC 10-19): TRACK 2 (Delay, Harmonizer, Reverb)
+// BANK 02 (PC 20-29): TRACK 3 (Song Structure / Story)
+// BANK 09 (PC 90-99): SHOWCASE (Looper Demo)
 //
-// 2. BASS (AKAI MPK):
-//    - Normal: Reese Bass (-2 Halbtöne)
-//    - Arp: Tasten 7, 8, 9 (8tel, Triolen, 16tel)
-//
-// 3. MASTER:
-//    - Taste 6: Drop Filter
-//    - Taste 10: Tap Tempo
 // ============================================================
 
 (
 // 1. SERVER SETUP
-s.options.device = "2- Steinberg UR22mkII "; // <--- PRÜFEN
+s.quit;
+
+s.options.device = "2- Steinberg UR22mkII ";
 s.options.numInputBusChannels = 1;
 s.options.numOutputBusChannels = 2;
 s.options.sampleRate = 48000;
+s.options.memSize = 2.pow(18); // 256MB RAM
 
 s.waitForBoot({
 
@@ -35,42 +28,31 @@ s.waitForBoot({
     MIDIClient.init;
     MIDIIn.connectAll;
 
-    // --- TEMPO ---
     t = TempoClock.default;
-    t.tempo = 174 / 60; // 174 BPM Start
+    t.tempo = 174 / 60;
 
-    "--- DNB ENGINE STARTED ---".postln;
+    "--- DNB CONCERT ENGINE STARTED ---".postln;
 
     // =======================================================
     // --- A. SYNTH DEFS ---
     // =======================================================
 
-    // 0. MIXER
     SynthDef(\mixToMaster, { |inBus, outBus|
         Out.ar(outBus, In.ar(inBus, 2));
     }).add;
 
-    // 1. TROMPETEN FX & OCTAVER
-
-    // Octaver mit "Mode": 0 = PitchShift, 1 = SubSynth (Sinus)
+    // --- STANDARD FX (BANK 00/01) ---
     SynthDef(\chainOctaver, { |inBus=0, outBus=0, octave=1, mix=0.0, mode=1|
         var input, wetSignal, mixSm, ratio, sigPitch, freq, sigSub, amp;
         mixSm = Lag.kr(mix, 0.1);
         input = SoundIn.ar(inBus);
-
-        // Engine 1: Natural PitchShift
         ratio = 1.0 / 2.0.pow(octave);
         sigPitch = PitchShift.ar(input, 0.05, ratio, 0, 0.004);
-
-        // Engine 2: Sub Synth (Sinus)
         # freq = Pitch.kr(input, ampThreshold: 0.02, median: 7);
         amp = input.abs.lag(0.05);
         sigSub = SinOsc.ar(freq / 2.pow(octave)) * amp;
-        sigSub = sigSub.tanh; // Leicht gesättigt für Hörbarkeit
-
+        sigSub = sigSub.tanh;
         wetSignal = Select.ar(mode, [sigPitch, sigSub]);
-
-        // Output: Original + Wet Signal
         Out.ar(outBus, (input + (wetSignal * mixSm)).dup);
     }).add;
 
@@ -81,9 +63,9 @@ s.waitForBoot({
     }).add;
 
     SynthDef(\fxWobble, { |inBus=0, outBus=0, gate=1, pedalA=0.5|
-        var input, oct, filter, lfo, env, amp;
-        var speed = pedalA.linexp(0, 1, 0.5, 12);
-        var depth = pedalA.linlin(0, 1, 200, 3000);
+        var input, oct, filter, lfo, env, amp, speed, depth;
+        speed = pedalA.linexp(0, 1, 0.5, 12);
+        depth = pedalA.linlin(0, 1, 200, 3000);
         env = EnvGen.kr(Env.asr(0.01, 1, 0.1), gate, doneAction: 2);
         input = In.ar(inBus, 2);
         input = (input[0] + input[1]) * 0.5;
@@ -96,9 +78,9 @@ s.waitForBoot({
     }).add;
 
     SynthDef(\fxCrusher, { |inBus=0, outBus=0, gate=1, pedalA=0|
-        var input, crushed, env, amp, dry;
-        var sr = pedalA.linexp(0, 1, 44100, 500);
-        var bits = pedalA.linlin(0, 1, 16, 3);
+        var input, crushed, env, amp, dry, sr, bits;
+        sr = pedalA.linexp(0, 1, 44100, 500);
+        bits = pedalA.linlin(0, 1, 16, 3);
         env = EnvGen.kr(Env.asr(0.01, 1, 0.1), gate, doneAction: 2);
         input = In.ar(inBus, 2);
         input = (input[0] + input[1]) * 0.5;
@@ -112,8 +94,8 @@ s.waitForBoot({
     }).add;
 
     SynthDef(\fxSynth, { |inBus=0, outBus=0, gate=1, pedalA=0.5|
-        var input, freq, hasFreq, synth, env;
-        var cutoff = pedalA.linexp(0, 1, 100, 8000);
+        var input, freq, hasFreq, synth, env, cutoff;
+        cutoff = pedalA.linexp(0, 1, 100, 8000);
         env = EnvGen.kr(Env.asr(0.01, 1, 0.1), gate, doneAction: 2);
         input = In.ar(inBus, 2);
         input = (input[0] + input[1]) * 0.5;
@@ -124,8 +106,8 @@ s.waitForBoot({
     }).add;
 
     SynthDef(\fxLaser, { |inBus=0, outBus=0, gate=1, pedalA=0.5|
-        var input, delay, fb, env;
-        var pitchRise = pedalA.linlin(0, 1, 1.001, 1.3);
+        var input, delay, fb, env, pitchRise;
+        pitchRise = pedalA.linlin(0, 1, 1.001, 1.3);
         env = EnvGen.kr(Env.asr(0.01, 1, 0.5), gate, doneAction: 2);
         input = In.ar(inBus, 2);
         input = (input[0] + input[1]) * 0.5;
@@ -137,8 +119,8 @@ s.waitForBoot({
     }).add;
 
     SynthDef(\fxDoom, { |inBus=0, outBus=0, gate=1, pedalA=0.5|
-        var input, dist, sub, env;
-        var drive = pedalA.linexp(0, 1, 1, 100);
+        var input, dist, sub, env, drive;
+        drive = pedalA.linexp(0, 1, 1, 100);
         env = EnvGen.kr(Env.asr(0.01, 1, 0.1), gate, doneAction: 2);
         input = In.ar(inBus, 2);
         input = (input[0] + input[1]) * 0.5;
@@ -148,7 +130,102 @@ s.waitForBoot({
         Out.ar(outBus, dist.dup * env * 0.5);
     }).add;
 
-    // 2. KEYBOARD SYNTHS
+    SynthDef(\fxDelay, { |inBus=0, outBus=0, gate=1, pedalA=0.5, delayTime=0.5|
+        var input, delays, env;
+        env = EnvGen.kr(Env.asr(0.01, 1, 2.0), gate, doneAction: 2);
+        input = In.ar(inBus, 2);
+        delays =
+            DelayN.ar(input, 4.0, delayTime * 1) * 0.7 +
+            DelayN.ar(input, 4.0, delayTime * 2) * 0.4 +
+            DelayN.ar(input, 4.0, delayTime * 3) * 0.2 +
+            DelayN.ar(input, 4.0, delayTime * 4) * 0.05;
+        Out.ar(outBus, (input + (delays * pedalA * 1.5)) * env);
+    }).add;
+
+    SynthDef(\fxHarmonizer, { |inBus=0, outBus=0, gate=1, pedalA=0.5, semitones=7|
+        var input, shifted, env, ratio, mix;
+        mix = pedalA.linlin(0, 1, 0.2, 1.0);
+        env = EnvGen.kr(Env.asr(0.05, 1, 0.1), gate, doneAction: 2);
+        input = In.ar(inBus, 2);
+        ratio = 2.pow(semitones / 12.0);
+        shifted = PitchShift.ar(input, 0.05, ratio, 0, 0.004);
+        Out.ar(outBus, (input * (1-mix) + (shifted * mix)) * env);
+    }).add;
+
+    // --- COMBO FX FÜR BANK 02 ---
+
+    // Crusher + Harmonizer (Quinte)
+    SynthDef(\fxCrushHarm, { |inBus=0, outBus=0, gate=1, pedalA=0|
+        var input, dry, crushed, harm, mix, sr, bits, env;
+        env = EnvGen.kr(Env.asr(0.05, 1, 0.1), gate, doneAction: 2);
+        input = In.ar(inBus, 2);
+
+        sr = pedalA.linexp(0, 1, 44100, 500);
+        bits = pedalA.linlin(0, 1, 16, 3);
+        dry = input;
+        crushed = Latch.ar(input, Impulse.ar(sr));
+        crushed = crushed.round(0.5.pow(bits));
+        crushed = HPF.ar(crushed, 200);
+        mix = (dry * (1-pedalA) + (crushed * 3 * pedalA));
+
+        harm = PitchShift.ar(mix, 0.05, 1.498, 0, 0.004);
+
+        Out.ar(outBus, (mix + harm) * 0.7 * env);
+    }).add;
+
+    // Doom + Harmonizer
+    SynthDef(\fxDoomHarm, { |inBus=0, outBus=0, gate=1, pedalA=0.5|
+        var input, dist, sub, harm, drive, env;
+        env = EnvGen.kr(Env.asr(0.05, 1, 0.1), gate, doneAction: 2);
+        input = In.ar(inBus, 2);
+
+        drive = pedalA.linexp(0, 1, 1, 100);
+        dist = (input * 2).fold2(0.2);
+        dist = (dist * drive).tanh;
+
+        harm = PitchShift.ar(dist, 0.05, 1.498, 0, 0.004);
+
+        Out.ar(outBus, (dist + harm) * 0.6 * env);
+    }).add;
+
+
+    // --- MASTER SEKTION ---
+
+    SynthDef(\masterReverb, { |inBus=0, outBus=0, active=0|
+        var input, wet, sig, activeLag;
+        activeLag = Lag.kr(active, 0.5);
+        input = In.ar(inBus, 2);
+        wet = GVerb.ar(input.sum, 200, 5.0, 0.5, 0.5, 15, -3.dbamp, -5.dbamp, -5.dbamp, 200, 1);
+        wet = wet * 0.4;
+        sig = input + (wet * activeLag);
+        Out.ar(outBus, sig);
+    }).add;
+
+    SynthDef(\masterFilter, { |inBus=0, outBus=0, active=0, pedalA=0|
+        var input, filtered, sig, activeLag, cutoff;
+        activeLag = Lag.kr(active, 0.2);
+        input = In.ar(inBus, 2);
+        cutoff = pedalA.linexp(0, 1, 20, 3000);
+        filtered = HPF.ar(input, cutoff);
+        filtered = FreeVerb.ar(filtered, 0.5, 0.8);
+        sig = (input * (1 - activeLag)) + (filtered * activeLag);
+        Out.ar(outBus, sig);
+    }).add;
+
+
+    // --- INSTRUMENTE ---
+    SynthDef(\loopRecorder, { |inBus=0, bufnum=0|
+        var input = In.ar(inBus, 2);
+        RecordBuf.ar(input, bufnum, 0, 1.0, 0.0, 1, 0, 1);
+    }).add;
+
+    SynthDef(\loopPlayer, { |outBus=0, bufnum=0, endFrame=48000, fadeTime=0.05, gate=1|
+        var playHead, sig, env;
+        env = EnvGen.kr(Env.asr(fadeTime, 1, fadeTime), gate, doneAction: 2);
+        playHead = Phasor.ar(0, BufRateScale.kr(bufnum), 0, endFrame, 0);
+        sig = BufRd.ar(2, bufnum, playHead);
+        Out.ar(outBus, sig * env);
+    }).add;
 
     SynthDef(\fatDnBBass, { |freq=50, amp=0.5, gate=1, outBus=0|
         var sig, sub, env, filterEnv;
@@ -172,17 +249,6 @@ s.waitForBoot({
         Out.ar(outBus, (sig * env * amp).dup);
     }).add;
 
-    // 3. MASTER FILTER
-    SynthDef(\masterFilter, { |inBus=0, outBus=0, active=0|
-        var input, filtered, sig;
-        var activeLag = Lag.kr(active, 0.2);
-        input = In.ar(inBus, 2);
-        filtered = HPF.ar(input, 400);
-        filtered = FreeVerb.ar(filtered, 0.5, 0.8);
-        sig = (input * (1 - activeLag)) + (filtered * activeLag);
-        Out.ar(outBus, sig);
-    }).add;
-
     s.sync;
 
     // =======================================================
@@ -191,19 +257,24 @@ s.waitForBoot({
 
     ~busInterconnect = Bus.audio(s, 2);
     ~busFxOut = Bus.audio(s, 2);
+    ~busReverbOut = Bus.audio(s, 2);
     ~busMaster = Bus.audio(s, 2);
 
     ~grpOct  = Group.new;
     ~grpFx   = Group.after(~grpOct);
-    ~grpBass = Group.after(~grpFx);
+    ~grpRev  = Group.after(~grpFx);
+    ~grpLoop = Group.after(~grpRev);
+    ~grpBass = Group.after(~grpLoop);
     ~grpMaster = Group.after(~grpBass);
 
-    // Start Synths
-    // chainOctaver Mode 1 = Sub Synth
+    ~buf = Buffer.alloc(s, s.sampleRate * 60, 2);
+    ~buf.zero;
+
     ~octSynth = Synth(\chainOctaver, [\inBus, 0, \outBus, ~busInterconnect, \mix, 0, \mode, 1], target: ~grpOct);
     ~fxSynth = Synth(\fxClean, [\inBus, ~busInterconnect, \outBus, ~busFxOut], target: ~grpFx);
-    ~masterSynth = Synth(\masterFilter, [\inBus, ~busMaster, \outBus, 0, \active, 0], target: ~grpMaster);
-    Synth(\mixToMaster, [\inBus, ~busFxOut, \outBus, ~busMaster], target: ~grpFx, addAction: \addToTail);
+    ~reverbSynth = Synth(\masterReverb, [\inBus, ~busFxOut, \outBus, ~busReverbOut, \active, 0], target: ~grpRev);
+    Synth(\mixToMaster, [\inBus, ~busReverbOut, \outBus, ~busMaster], target: ~grpRev, addAction: \addToTail);
+    ~masterSynth = Synth(\masterFilter, [\inBus, ~busMaster, \outBus, 0, \active, 0, \pedalA, 0], target: ~grpMaster);
 
 
     // =======================================================
@@ -213,19 +284,26 @@ s.waitForBoot({
     ~state = ();
     ~state[\pedalA] = 0;
     ~state[\filterOn] = false;
+    ~state[\reverbOn] = false;
     ~state[\arpOn] = false;
     ~state[\arpRate] = 0.25;
+    ~state[\arpPattern] = [0, 3, 7, 12];
     ~state[\tapTimes] = List.new;
+
+    ~state[\loopStatus] = \empty;
+    ~state[\recStartTime] = 0;
+    ~state[\loopFrames] = 0;
+
     ~bassNotes = Array.newClear(128);
     ~currentBassNote = nil;
 
     // --- ARPEGGIATOR TASK ---
     ~arpTask = Task({
-        var intervals = [0, 3, 7, 12];
         var step = 0;
         loop {
             if (~state[\arpOn] and: ~currentBassNote.notNil) {
-                var note = ~currentBassNote + intervals.wrapAt(step);
+                var pattern = ~state[\arpPattern];
+                var note = ~currentBassNote + pattern.wrapAt(step);
                 var transNote = note - 2;
                 Synth(\arpBass, [\freq, transNote.midicps, \amp, 0.6, \outBus, ~busMaster], target: ~grpBass);
                 step = step + 1;
@@ -253,119 +331,161 @@ s.waitForBoot({
     ~makeGui.();
 
 
-    // --- FX HELPER ---
-    ~changeFX = { |synthName|
+    // --- HELPERS ---
+
+    ~changeFX = { |synthName, args = #[]|
         if (~fxSynth.notNil) { ~fxSynth.set(\gate, 0); };
-        ~fxSynth = Synth(synthName, [\inBus, ~busInterconnect, \outBus, ~busFxOut, \pedalA, ~state[\pedalA]], target: ~grpFx);
+        ~fxSynth = Synth(synthName, [\inBus, ~busInterconnect, \outBus, ~busFxOut, \pedalA, ~state[\pedalA]] ++ args, target: ~grpFx);
         ("⚡ FX: " ++ synthName).postln;
     };
 
-    // --- OCTAVER HELPER ---
     ~setSubOctaver = { |octave|
-        // Schaltet FX auf Clean und aktiviert Sub-Octaver auf der gewünschten Oktave
         if (~fxSynth.notNil) { ~fxSynth.set(\gate, 0); };
         ~fxSynth = Synth(\fxClean, [\inBus, ~busInterconnect, \outBus, ~busFxOut], target: ~grpFx);
-
-        ~octSynth.set(\mix, 1.0, \octave, octave, \mode, 1); // Mode 1 = Sub Sine
+        ~octSynth.set(\mix, 1.0, \octave, octave, \mode, 1);
         ("⬇️ SUB BASS: -" ++ octave ++ " OCT").postln;
+    };
+
+    ~updateTempo = {
+        var time = Process.elapsedTime;
+        var diff;
+        ~state[\tapTimes].add(time);
+        if (~state[\tapTimes].size > 4) { ~state[\tapTimes].removeAt(0) };
+        if (~state[\tapTimes].size > 1) {
+            diff = ~state[\tapTimes].last - ~state[\tapTimes].first;
+            diff = diff / (~state[\tapTimes].size - 1);
+            t.tempo = 1 / diff;
+            ("🥁 TAP! " ++ (t.tempo * 60).round(1) ++ " BPM").postln;
+            if (~fxSynth.defName == \fxDelay) { ~fxSynth.set(\delayTime, t.beatDur); };
+        };
+    };
+
+    ~resetAll = {
+        ~octSynth.set(\mix, 0);
+        ~state[\octOn] = false;
+        ~state[\filterOn] = false;
+        ~state[\reverbOn] = false;
+        ~masterSynth.set(\active, 0);
+        ~reverbSynth.set(\active, 0);
+        ~state[\arpOn] = false;
+
+        if (~fxSynth.notNil) { ~fxSynth.set(\gate, 0); };
+        ~fxSynth = Synth(\fxClean, [\inBus, ~busInterconnect, \outBus, ~busFxOut], target: ~grpFx);
+        "🟢 CLEAN".postln;
     };
 
 
     // =======================================================
-    // --- D. MIDI MAPPING (PC) ---
+    // --- D. MIDI MAPPING ---
     // =======================================================
 
-    MIDIdef.program(\track1Control, { |val|
+    MIDIdef.program(\fcbControl, { |val|
+
+        ("PC Empfangen: " ++ val).postln;
+
         switch(val,
 
-            // TASTE 1: WOBBLE (Octaver aus für sauberen Effekt)
-            0, {
-                ~octSynth.set(\mix, 0);
-                ~changeFX.(\fxWobble);
+            // --- BANK 00 (TRACK 1) ---
+            0, { ~octSynth.set(\mix, 0); ~changeFX.(\fxWobble); },
+            1, { ~octSynth.set(\mix, 0); ~changeFX.(\fxCrusher); },
+            2, { ~octSynth.set(\mix, 0); ~changeFX.(\fxSynth); },
+            3, { ~octSynth.set(\mix, 0); ~changeFX.(\fxLaser); },
+            4, { ~octSynth.set(\mix, 0); ~changeFX.(\fxDoom); },
+            5, { if (~state[\filterOn]) { ~state[\filterOn]=false; ~masterSynth.set(\active, 0); "💣 DROP!".postln; } { ~state[\filterOn]=true; ~masterSynth.set(\active, 1); "🌪️ BUILD-UP".postln; }; },
+            6, { ~state[\arpOn] = ~state[\arpOn].not; if (~state[\arpOn]) { "🎹 ARP: ON".postln } { "🎹 ARP: OFF".postln }; },
+
+            // --- BANK 01 (TRACK 2) ---
+            10, { ~octSynth.set(\mix, 0); ~changeFX.(\fxDelay, [\delayTime, t.beatDur]); },
+            11, { if (~state[\filterOn]) { ~state[\filterOn]=false; ~masterSynth.set(\active, 0); "💣 DROP!".postln; } { ~state[\filterOn]=true; ~masterSynth.set(\active, 1); "🌪️ HIGH PASS".postln; }; },
+            12, { ~setSubOctaver.(1); },
+            13, { ~setSubOctaver.(2); },
+            14, { ~setSubOctaver.(3); },
+            15, { ~state[\reverbOn] = ~state[\reverbOn].not; if (~state[\reverbOn]) { ~reverbSynth.set(\active, 1); "⛪ REVERB: ON".postln; } { ~reverbSynth.set(\active, 0); "⛪ REVERB: OFF".postln; }; },
+            16, { ~octSynth.set(\mix, 0); ~changeFX.(\fxHarmonizer, [\semitones, 7]); "🎺 HARMONY: +5th".postln; },
+            17, { ~octSynth.set(\mix, 0); ~changeFX.(\fxHarmonizer, [\semitones, 5]); "🎺 HARMONY: +4th".postln; },
+            18, { ~octSynth.set(\mix, 0); ~changeFX.(\fxHarmonizer, [\semitones, 4]); "🎺 HARMONY: +3rd".postln; },
+            19, { ~updateTempo.(); },
+
+            // ===============================================
+            // --- BANK 02 (TRACK 3 - SONG STRUCTURE) ---
+            // ===============================================
+
+            // 20 (1): REVERB + CRUSHER
+            20, {
+                ~resetAll.();
+                ~reverbSynth.set(\active, 1); ~state[\reverbOn] = true;
+                ~changeFX.(\fxCrusher);
+                "▶️ SONG 3: PART 1 (Crush + Rev)".postln;
             },
 
-            // TASTE 2: SUB BASS -1 (FX Clean, Octaver An)
-            1, { ~setSubOctaver.(1); },
-
-            // TASTE 3: SUB BASS -2
-            2, { ~setSubOctaver.(2); },
-
-            // TASTE 4: SUB BASS -3
-            3, { ~setSubOctaver.(3); },
-
-            // TASTE 5: DOOM (Octaver aus)
-            4, {
-                ~octSynth.set(\mix, 0);
-                ~changeFX.(\fxDoom);
+            // 21 (2): ADD HARMONIZER + ARP 8tel OKTAVEN
+            21, {
+                // FX wechseln zu Crusher+Harm
+                ~changeFX.(\fxCrushHarm);
+                // Arp an (8tel, Oktaven)
+                ~state[\arpOn] = true; ~state[\arpRate] = 0.5; ~state[\arpPattern] = [0, 12];
+                "▶️ SONG 3: PART 2 (Add Harm + Arp 8tel)".postln;
             },
 
-            // TASTE 6: DROP FILTER
-            5, {
-                if (~state[\filterOn]) {
-                    ~state[\filterOn] = false;
-                    ~masterSynth.set(\active, 0);
-                    "💣 DROP!".postln;
+            // 22 (3): BUILD UP (HighPass Filter Control)
+            22, {
+                // FX bleibt, Arp bleibt.
+                // Reverb bleibt.
+                // HighPass AN (Gesteuert durch Pedal!)
+                ~state[\filterOn] = true;
+                ~masterSynth.set(\active, 1);
+                "▶️ SONG 3: PART 3 (BUILD UP - Pedal Filter)".postln;
+            },
+
+            // 23 (4): DROP (Wobble, Filter Off, Rev Off, Arp 8tel Power)
+            23, {
+                ~state[\filterOn] = false; ~masterSynth.set(\active, 0); // Filter aus
+                ~reverbSynth.set(\active, 0); ~state[\reverbOn] = false; // Reverb aus
+                ~changeFX.(\fxWobble); // Wobble statt Doom
+                // Arp 8tel Root-5-8
+                ~state[\arpOn] = true; ~state[\arpRate] = 0.5; ~state[\arpPattern] = [0, 7, 12];
+                "▶️ SONG 3: PART 4 (DROP - Wobble + Arp 8tel Power)".postln;
+            },
+
+            // 24 (5): OUTRO (Crusher, Reverb On, Arp Off)
+            24, {
+                ~reverbSynth.set(\active, 1); ~state[\reverbOn] = true;
+                ~state[\arpOn] = false; // Bass Arp Stop
+                ~changeFX.(\fxCrusher); // Crusher statt Wobble
+                "▶️ SONG 3: PART 5 (OUTRO - Crusher + Rev)".postln;
+            },
+
+
+            // --- BANK 09 (SHOWCASE) ---
+            90, { if (~recorderSynth.notNil) { ~recorderSynth.free; }; ~state[\loopStatus] = \recording; ~state[\recStartTime] = Process.elapsedTime; ~recorderSynth = Synth(\loopRecorder, [\inBus, ~busReverbOut, \bufnum, ~buf], target: ~grpLoop); "🔴 REC".postln; },
+            91, {
+                if (~state[\loopStatus] == \recording) {
+                    var dur, fr; ~recorderSynth.free; ~recorderSynth = nil; dur = Process.elapsedTime - ~state[\recStartTime]; fr = (dur * s.sampleRate).asInteger; if(fr<500){fr=500}; ~state[\loopFrames]=fr; ~playerSynth = Synth(\loopPlayer, [\outBus, ~busMaster, \bufnum, ~buf, \endFrame, fr], target: ~grpLoop); ~state[\loopStatus] = \playing; "▶️ PLAY".postln;
                 } {
-                    ~state[\filterOn] = true;
-                    ~masterSynth.set(\active, 1);
-                    "🌪️ BUILD-UP".postln;
+                    if (~state[\loopStatus] == \playing) { if (~playerSynth.notNil) { ~playerSynth.set(\gate, 0); ~playerSynth = nil; }; ~state[\loopStatus] = \stopped; "⏸️ STOP".postln; }
+                    { if (~state[\loopFrames] > 0) { ~playerSynth = Synth(\loopPlayer, [\outBus, ~busMaster, \bufnum, ~buf, \endFrame, ~state[\loopFrames]], target: ~grpLoop); ~state[\loopStatus] = \playing; "▶️ RESTART".postln; }; };
                 };
             },
-
-            // TASTE 7: ARP 8tel
-            6, {
-                if (~state[\arpOn] and: (~state[\arpRate] == 0.5)) {
-                    ~state[\arpOn] = false; "🎹 ARP: OFF".postln;
-                } {
-                    ~state[\arpOn] = true; ~state[\arpRate] = 0.5; "🎹 ARP: ON (8tel)".postln;
-                };
-            },
-
-            // TASTE 8: ARP 8tel-Triolen
-            7, {
-                if (~state[\arpOn] and: (~state[\arpRate] == (1/3))) {
-                    ~state[\arpOn] = false; "🎹 ARP: OFF".postln;
-                } {
-                    ~state[\arpOn] = true; ~state[\arpRate] = 1/3; "🎹 ARP: ON (8tel Triolen)".postln;
-                };
-            },
-
-            // TASTE 9: ARP 16tel
-            8, {
-                if (~state[\arpOn] and: (~state[\arpRate] == 0.25)) {
-                    ~state[\arpOn] = false; "🎹 ARP: OFF".postln;
-                } {
-                    ~state[\arpOn] = true; ~state[\arpRate] = 0.25; "🎹 ARP: ON (16tel)".postln;
-                };
-            },
-
-            // TASTE 10: TAP TEMPO
-            9, {
-                var time = Process.elapsedTime;
-                var diff;
-                ~state[\tapTimes].add(time);
-                if (~state[\tapTimes].size > 4) { ~state[\tapTimes].removeAt(0) };
-
-                if (~state[\tapTimes].size > 1) {
-                    diff = ~state[\tapTimes].last - ~state[\tapTimes].first;
-                    diff = diff / (~state[\tapTimes].size - 1);
-                    t.tempo = 1 / diff;
-                    ("🥁 TAP!").postln;
-                };
-            }
+            92, { ~octSynth.set(\mix, 0); ~changeFX.(\fxLaser); },
+            93, { if (~state[\filterOn]) { ~state[\filterOn]=false; ~masterSynth.set(\active, 0); "💣 DROP".postln; } { ~state[\filterOn]=true; ~masterSynth.set(\active, 1); "🌪️ HPF".postln; }; },
+            94, { ~octSynth.set(\mix, 0); ~changeFX.(\fxDoom); },
+            95, { if (~state[\arpOn] and: { (~state[\arpRate] - 0.25).abs < 0.001 } and: { ~state[\arpPattern] == [0, 3, 7, 12] }) { ~state[\arpOn] = false; "🎹 ARP: OFF".postln; } { ~state[\arpOn] = true; ~state[\arpRate] = 0.25; ~state[\arpPattern] = [0, 3, 7, 12]; "🎹 ARP: ON (16tel)".postln; }; },
+            96, { if (~state[\arpOn] and: { (~state[\arpRate] - (1/3)).abs < 0.001 } and: { ~state[\arpPattern] == [0, 3, 7] }) { ~state[\arpOn] = false; "🎹 ARP: OFF".postln; } { ~state[\arpOn] = true; ~state[\arpRate] = 1/3; ~state[\arpPattern] = [0, 3, 7]; "🎹 ARP: ON (Triolen)".postln; }; },
+            97, { if (~state[\arpOn] and: { (~state[\arpRate] - 0.5).abs < 0.001 } and: { ~state[\arpPattern] == [0, 12] }) { ~state[\arpOn] = false; "🎹 ARP: OFF".postln; } { ~state[\arpOn] = true; ~state[\arpRate] = 0.5; ~state[\arpPattern] = [0, 12]; "🎹 ARP: ON (8tel Okt)".postln; }; },
+            98, { if (~state[\arpOn] and: { (~state[\arpRate] - 0.5).abs < 0.001 } and: { ~state[\arpPattern] == [0, 3, 7, 10] }) { ~state[\arpOn] = false; "🎹 ARP: OFF".postln; } { ~state[\arpOn] = true; ~state[\arpRate] = 0.5; ~state[\arpPattern] = [0, 3, 7, 10]; "🎹 ARP: ON (8tel Min7)".postln; }; },
+            99, { ~updateTempo.(); }
         );
     });
 
+    // PEDAL A (CC 27)
     MIDIdef.cc(\pedalA_control, { |val|
         var norm = val / 127.0;
         ~state[\pedalA] = norm;
         if (~fxSynth.notNil) { ~fxSynth.set(\pedalA, norm) };
+        ~octSynth.set(\mix, norm);
+        // Update Master Filter Cutoff (für Bank 02 Taste 3)
+        ~masterSynth.set(\pedalA, norm);
     }, 27);
-
-
-    // =======================================================
-    // --- E. KEYBOARD ---
-    // =======================================================
 
     MIDIdef.noteOn(\bassPlay, { |vel, num, chan, src|
         if(num > 20) {
